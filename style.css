@@ -1,0 +1,456 @@
+/* --- 全局與字體設定 --- */
+:root {
+    --sidebar-bg: #1e293b; /* 深藍灰 */
+    --main-bg: #f1f5f9;     /* 淺灰 */
+    --card-bg: #ffffff;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --text-light: #f8fafc;
+    --accent-color: #3b82f6; /* 鮮豔藍 */
+    --border-color: #e2e8f0;
+}
+
+body {
+    font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    margin: 0;
+    background-color: var(--main-bg);
+    color: var(--text-primary);
+    height: 100vh;
+    overflow: hidden; /* 避免頁面滾動 */
+}
+
+/* --- 彩虹分隔線實作 (F-001) --- */
+.rainbow-divider {
+    height: 2px;
+    border: none;
+    background: linear-gradient(to right, #ef4444, #f97316, #eab308, #84cc16, #22c55e, #3b82f6, #8b5cf6);
+    margin: 1rem 0;
+}
+
+
+/* --- 左側控制區 (Sidebar) --- */
+#sidebar {
+    width: 320px;
+    background-color: var(--sidebar-bg);
+    color: var(--text-light);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+#sidebar h2 {
+    margin: 0;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+#sidebar .divider {
+    border-top: 1px solid #334155; /* 深色模式下的分隔線 */
+    margin: 1rem 0;
+}
+
+#sidebar label {
+    font-weight: 500;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+}
+
+#sidebar input[type="text"],
+#sidebar input[type="password"],
+#sidebar input[type="date"] {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #475569;
+    border-radius: 3px;
+    background-color: #334155;
+    color: var(--text-light);
+    box-sizing: border-box;
+    font-size: 0.9rem;
+}
+
+#sidebar input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4);
+}
+
+#sidebar button {
+    width: 100%;
+    padding: 0.75rem;
+    margin-top: 1.5rem;
+    border: none;
+    border-radius: 3px;
+    color: white;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+#analyze-button {
+    background-color: var(--accent-color);
+}
+#analyze-button:hover {
+    background-color: #2563eb;
+    transform: translateY(-2px);
+}
+
+#n8n-button {
+    background-color: #475569;
+}
+#n8n-button:hover {
+    background-color: #64748b;
+    transform: translateY(-2px);
+}
+
+/* --- 右側圖表區 (Main Content) --- */
+#main-content {
+    flex-grow: 1;
+    padding: 2rem;
+    overflow-y: auto; /* 讓內容區可以滾動 */
+    height: 100vh;
+    box-sizing: border-box;
+}
+
+.main-title {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 500;
+}
+
+#welcome-message {
+    text-align: center;
+    margin-top: 20vh;
+    color: var(--text-secondary);
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* 卡片式設計 */
+.card {
+    background-color: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    padding: 1.2rem;
+    margin-bottom: 2rem;
+}
+
+/* 頂部指標卡片 */
+#metrics-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+.metric {
+    background-color: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+
+.metric-title {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.metric-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+}
+
+.metric-delta { font-size: 1rem; }
+.positive { color: #16a34a; } /* 綠色 */
+.negative { color: #dc2626; } /* 紅色 */
+
+
+/* 歷史數據表格 */
+#table-container h3 {
+    margin-top: 0;
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    text-align: right;
+    white-space: nowrap;
+}
+
+th {
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+td:first-child, th:first-child {
+    text-align: left;
+}
+
+
+/* --- 載入動畫 --- */
+#loader {
+    position: absolute;
+    top: 50%;
+    left: calc(50% + 160px); /* 考慮到側邊欄寬度 */
+    transform: translate(-50%, -50%);
+    width: 50px;
+    height: 50px;
+    border: 5px solid #e0e0e0;
+    border-top: 5px solid var(--accent-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: translate(-50%, -50%) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* RWD 響應式設計：小螢幕時垂直排列 */
+@media (max-width: 1024px) {
+    body {
+        flex-direction: column;
+        height: auto;
+        overflow: auto;
+    }
+    #sidebar {
+        width: 100%;
+        height: auto;
+    }
+    #main-content {
+        height: auto;
+        overflow-y: visible;
+    }
+    #loader {
+        left: 50%;
+    }
+}
+
+/* --- 股票新聞列表樣式 --- */
+#news-container h3 {
+    margin-top: 0;
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.news-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.news-item {
+    display: flex;
+    gap: 1rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.news-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.news-image {
+    width: 120px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+
+.news-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.news-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-decoration: none;
+    margin-bottom: 0.5rem;
+}
+
+.news-title:hover {
+    color: var(--accent-color);
+}
+
+.news-meta {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+/* --- 分析師評級卡片樣式 --- */
+.rating-bar-container {
+    width: 100%;
+    height: 8px;
+    background-color: var(--border-color);
+    border-radius: 4px;
+    margin-top: 5px;
+    overflow: hidden;
+}
+
+.rating-bar {
+    height: 100%;
+    border-radius: 4px;
+    /* 顏色會由 JS 動態設定 */
+}
+
+/* --- 關鍵財務指標樣式 --- */
+#ratios-container h3 {
+    margin-top: 0;
+    font-size: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.ratios-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem 2rem; /* 垂直間距 | 水平間距 */
+}
+
+.ratio-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.ratio-label {
+    color: var(--text-secondary);
+}
+
+.ratio-value {
+    font-weight: 600;
+}
+
+/* --- 圖表週期切換按鈕樣式 (新版 Radio Tag) --- */
+.radio-tag-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 0.5rem;
+}
+
+/* 隱藏原始的 radio 按鈕 */
+.timeframe-radio {
+    display: none;
+}
+
+/* 設定標籤樣式 */
+.radio-tag-group label {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    color: #cbd5e1;
+    font-size: 0.9rem;
+    transition: color 0.2s;
+}
+
+/* 繪製外圈 */
+.radio-tag-group label::before {
+    content: '';
+    display: block;
+    width: 1em;
+    height: 1em;
+    border: 2px solid #475569;
+    border-radius: 50%;
+    margin-right: 0.5em;
+    transition: all 0.2s;
+}
+
+/* 當 radio 按鈕被選中時，改變外圈樣式 */
+.timeframe-radio:checked + label::before {
+    border-color: var(--accent-color);
+    /* 繪製內圈的實心圓點 */
+    box-shadow: inset 0 0 0 3px var(--sidebar-bg);
+    background-color: var(--accent-color);
+}
+
+/* 當 radio 按鈕被選中時，改變文字樣式 */
+.timeframe-radio:checked + label {
+    color: var(--text-light);
+    font-weight: 600;
+}
+
+/* 滑鼠懸停效果 */
+.radio-tag-group label:hover {
+    color: var(--text-light);
+}
+
+/* --- AI 分析結果樣式 --- */
+#ai-analysis-container h3 {
+    margin-top: 0;
+    font-size: 1rem; /* 稍微放大主標題 */
+    margin-bottom: 1rem;
+}
+
+/* AI 內容的容器 */
+.ai-content {
+    font-size: 1rem;      /* 設定基準字體大小 */
+    line-height: 1.7;     /* 增加行高，提升易讀性 */
+    color: #334155;      /* 設定預設文字顏色 */
+}
+
+/* AI 內容中的段落 */
+.ai-content p {
+    margin-top: 0;
+    margin-bottom: 1rem; /* 段落之間增加間距 */
+}
+
+/* AI 內容中的標題 (對應 Markdown 的 '##' 或 '###') */
+.ai-content h1,
+.ai-content h2,
+.ai-content h3,
+.ai-content h4,
+.ai-content h5 {
+    color: var(--text-primary);
+    font-weight: 700;
+    margin-top: 2rem;   /* 與上方內容拉開距離 */
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color); /* 加上底線 */
+    padding-bottom: 0.5rem;
+}
+
+/* 針對不同層級的標題設定字體大小 */
+.ai-content h2 { font-size: 1.1rem; }
+.ai-content h3 { font-size: 0.9rem; }
+.ai-content h4 { font-size: 0.8rem; }
+
+
+/* AI 內容中的粗體文字 (對應 Markdown 的 '**text**') */
+.ai-content strong {
+    color: var(--accent-color); /* 使用主題藍色來強調 */
+    font-weight: 600;
+}
+
+/* AI 內容中的無序列表 (對應 Markdown 的 '*' 或 '-') */
+.ai-content ul {
+    padding-left: 25px;       /* 讓列表內縮 */
+    margin-top: 0.5rem;
+    margin-bottom: 1rem;
+    list-style-type: disc;    /* 使用實心圓點 */
+}
+
+/* AI 內容中的列表項目 */
+.ai-content li {
+    margin-bottom: 0.5rem;   /* 增加項目之間的間距 */
+}

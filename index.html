@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 股票趨勢分析系統</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h2>📈 分析設定</h2>
+        <div class="rainbow-divider"></div>
+
+        <label for="symbol-input">股票代碼 (Stock Symbol)</label>
+        <input type="text" id="symbol-input" value="NVDA" placeholder="例如: AAPL, TSLA">
+
+        <label for="fmp-key-input">FMP API 金鑰</label>
+        <input type="password" id="fmp-key-input" placeholder="請貼上你的 FMP API Key">
+
+        <label for="start-date-input">起始日期 (Start Date)</label>
+        <input type="date" id="start-date-input">
+
+        <label for="end-date-input">結束日期 (End Date)</label>
+        <input type="date" id="end-date-input">
+
+        <label>圖表週期 (Timeframe)</label>
+        <div id="timeframe-selector" class="radio-tag-group">
+            <input type="radio" id="tf-day" name="timeframe" class="timeframe-radio" data-timeframe="1day" checked>
+            <label for="tf-day">日 K 線</label>
+
+            <input type="radio" id="tf-week" name="timeframe" class="timeframe-radio" data-timeframe="1week">
+            <label for="tf-week">週 K 線</label>
+
+            <input type="radio" id="tf-month" name="timeframe" class="timeframe-radio" data-timeframe="1month">
+            <label for="tf-month">月 K 線</label>
+        </div>
+
+        <button id="analyze-button">🚀 分析</button>
+
+        <div class="divider"></div>
+        
+        <button id="n8n-button">🤖 執行 AI 分析 (n8n)</button>
+
+        <div class="rainbow-divider"></div>
+        <h2>📢 免責聲明</h2>
+        <p style="font-size: 0.7rem; color: #cbd5e1;">本系統僅供學術研究與教育用途，所有數據與分析結果僅供參考，**不構成投資建議**。</p>
+
+    </div>
+
+    <div id="main-content">
+        <h1 class="main-title">AI 股票趨勢分析系統</h1>
+        <div class="rainbow-divider"></div>
+        
+        <div id="welcome-message">
+            <p>請在左側輸入設定並點擊「分析」。</p>
+        </div>
+        
+        <div id="results-container" class="hidden">
+            <div id="metrics-container"></div>
+            <div id="chart-container" class="card"></div>
+            <div id="ai-analysis-container" class="card"></div>
+            <div id="ratios-container" class="card"></div>
+            <div id="news-container" class="card"></div>
+            <div id="table-container" class="card"></div>
+            <div id="insider-table-container" class="card"></div>
+        </div>
+
+        <div id="loader" class="hidden"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
