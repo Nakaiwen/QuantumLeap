@@ -21,6 +21,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const n8nButton = document.getElementById('n8n-button');
     const aiAnalysisContainer = document.getElementById('ai-analysis-container');
     const timeframeSelector = document.getElementById('timeframe-selector');
+    const rsiPeriodInput = document.getElementById('rsi-period-input');
+    const rsiPeriodValue = document.getElementById('rsi-period-value');
+    const screenerButton = document.getElementById('screener-button');
 
     const welcomeMessage = document.getElementById('welcome-message');
     const resultsContainer = document.getElementById('results-container');
@@ -37,9 +40,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const today = new Date();
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(today.getDate() - 90);
-    // 格式化成 YYYY-MM-DD
     endDateInput.value = today.toISOString().split('T')[0];
     startDateInput.value = ninetyDaysAgo.toISOString().split('T')[0];
+
+    // 【*** 在這裡新增對新按鈕的監聽 ***】
+    screenerButton.addEventListener('click', runScreener);
+
+    // --- 監聽 RSI 滑桿的變動事件 ---
+    rsiPeriodInput.addEventListener('input', (event) => {
+        rsiPeriodValue.textContent = event.target.value;
+    });
+    // 當用戶放開滑鼠時，自動重新分析
+    rsiPeriodInput.addEventListener('change', runAnalysis);
     
     // --- 監聽"開始分析"按鈕的點擊事件 ---
     analyzeButton.addEventListener('click', runAnalysis);
@@ -67,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const apiKey = fmpKeyInput.value.trim();
         const startDate = startDateInput.value;
         const endDate = endDateInput.value;
+        const rsiPeriod = parseInt(rsiPeriodInput.value, 10); // 【*** 新增此行 ***】
 
         if (!symbol || !apiKey) {
             alert('請輸入股票代碼和 FMP API 金鑰。');
@@ -89,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchKeyRatios(symbol, apiKey)
             ]);
             
-            const processedPriceData = processData(priceRawData);
+            const processedPriceData = processData(priceRawData, rsiPeriod); 
 
             // 【新增點】對內部人交易數據進行摘要
             let insiderTradingSummary = {
@@ -121,6 +134,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const highPriceInfo = processedPriceData.high.reduce((acc, val, idx) => val > acc.val ? { val, idx } : acc, { val: -Infinity, idx: -1 });
                 const lowPriceInfo = processedPriceData.low.reduce((acc, val, idx) => val < acc.val ? { val, idx } : acc, { val: -Infinity, idx: -1 });
                 const totalVolume = processedPriceData.volume.reduce((sum, val) => sum + (val || 0), 0);
+                const formattedNews = stockNews.map(news => ({title: news.title,url: news.url
+                }));
 
                 currentAnalysisData = {
                     symbol: symbol,
@@ -142,9 +157,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     latest_signal: processedPriceData.signalLine[lastIndex]?.toFixed(2) || 'N/A',
                     latest_histogram: processedPriceData.histogram[lastIndex]?.toFixed(2) || 'N/A',
                     latest_rsi: processedPriceData.rsi[lastIndex]?.toFixed(2) || 'N/A',
+                    rsi_period: rsiPeriod, 
                     latest_volume: processedPriceData.volume[lastIndex]?.toLocaleString() || 'N/A',
                     average_volume: (totalVolume / processedPriceData.volume.length).toLocaleString(undefined, { maximumFractionDigits: 0 }) || 'N/A',
-                    insider_trading_summary: insiderTradingSummary
+                    insider_trading_summary: insiderTradingSummary,
+                    recent_news: formattedNews // <-- 新增的欄位
                 };
             } else {
                 currentAnalysisData = null;
@@ -153,6 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // 4. 在頁面上顯示結果
             metricsContainer.innerHTML = ''; 
             displayMetrics(processedPriceData);
+            displayRsiAlert(processedPriceData);
             displayFundamentals(ratings, ratios);
             plotChart(processedPriceData, insiderTrades, symbol);
             displayDataTable(processedPriceData);
@@ -199,7 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========================================================================
     // --- 計算技術指標 ---
     // ========================================================================
-    function processData(rawData) {
+    function processData(rawData, rsiPeriod) {
         const data = {
             date: [], open: [], high: [], low: [], close: [], volume: [],
             ma5: [], ma10: [], ma20: [], ma60: [],
@@ -227,6 +245,9 @@ document.addEventListener('DOMContentLoaded', () => {
         data.macdLine = macdData.macdLine;
         data.signalLine = macdData.signalLine;
         data.histogram = macdData.histogram;
+
+        // 檢查 Histogram 陣列中是否有任何一個不是 null 的有效數值
+        const hasValidHistogramValue = macdData.histogram.some(value => value !== null);
 
         // 計算 RSI
         data.rsi = calculateRSI(data.close);
@@ -302,8 +323,22 @@ document.addEventListener('DOMContentLoaded', () => {
         return { macdLine, signalLine, histogram };
     }
 
+    // --- 計算 RSI (還原至原始穩定版本，並支援動態週期) ---
     function calculateRSI(closePrices, period = 14) {
         let rsi = [];
+        // 在陣列開頭先填上 null，數量為 period
+        for (let i = 0; i < period; i++) {
+            rsi.push(null);
+        }
+
+        if (closePrices.length <= period) {
+            // 如果數據不足，補滿 null 並返回
+            while(rsi.length < closePrices.length) {
+                rsi.push(null);
+            }
+            return rsi;
+        }
+
         let gains = 0;
         let losses = 0;
 
@@ -319,8 +354,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let avgGain = gains / period;
         let avgLoss = losses / period;
+        
         let rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
-        rsi[period] = 100 - (100 / (1 + rs));
+        rsi.push(100 - (100 / (1 + rs)));
 
         // 計算後續的 RSI
         for (let i = period + 1; i < closePrices.length; i++) {
@@ -335,11 +371,6 @@ document.addEventListener('DOMContentLoaded', () => {
             rsi.push(100 - (100 / (1 + rs)));
         }
         
-        // 在陣列開頭補上 null
-        while(rsi.length < closePrices.length) {
-            rsi.unshift(null);
-        }
-
         return rsi;
     }
 
@@ -368,135 +399,127 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
-   // --- 使用 Plotly.js 繪製圖表 ---
-    function plotChart(data, insiderTrades, symbol) {
+    // --- 顯示 RSI 超買/超賣警告 ---
+    function displayRsiAlert(data) {
+        const rsiAlertContainer = document.getElementById('rsi-alert-container');
+        // 先清空舊的警告
+        rsiAlertContainer.innerHTML = '';
 
-        // 【新增點】處理內部人交易數據，轉換為圖表標記
+        // 取得最新的 RSI 數值
+        const lastIndex = data.rsi.length - 1;
+        const latestRsi = data.rsi[lastIndex];
+
+        // 如果沒有有效的 RSI 數值，就直接結束
+        if (latestRsi === null || latestRsi === undefined) {
+            return;
+        }
+
+        let alertHTML = '';
+        // 判斷 RSI 數值區間
+        if (latestRsi > 70) {
+            alertHTML = `
+                <div class="rsi-alert rsi-alert-overbought">
+                    <span class="rsi-icon">⚠️</span>
+                    <div class="rsi-text">
+                        <strong>超買警告 (Overbought Warning)</strong>
+                        <span>最新 RSI 數值為 ${latestRsi.toFixed(2)}，已進入超買區 (>70)，市場可能過熱，請注意回檔風險。</span>
+                    </div>
+                </div>
+            `;
+        } else if (latestRsi < 30) {
+            alertHTML = `
+                <div class="rsi-alert rsi-alert-oversold">
+                    <span class="rsi-icon">💡</span>
+                    <div class="rsi-text">
+                        <strong>超賣訊號 (Oversold Signal)</strong>
+                        <span>最新 RSI 數值為 ${latestRsi.toFixed(2)}，已進入超賣區 (<30)，市場可能過冷，請留意反彈機會。</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 將產生的警告訊息 HTML 放入容器中
+        if (alertHTML) {
+            rsiAlertContainer.innerHTML = alertHTML;
+        }
+    }
+
+    // --- 使用 Plotly.js 繪製圖表 (最終修正版：修正範圍、還原所有指標) ---
+    function plotChart(data, insiderTrades, symbol) {
+        
+        // --- 【*** 修正點 1: 手動計算 Y 軸顯示範圍 ***】 ---
+        // 1. 過濾掉 null 值，找出真實的最高價和最低價
+        const validHighs = data.high.filter(v => v !== null);
+        const validLows = data.low.filter(v => v !== null);
+        const priceMin = Math.min(...validLows);
+        const priceMax = Math.max(...validHighs);
+
+        // 2. 增加 5% 的邊界 (padding)，讓圖表更好看
+        const padding = (priceMax - priceMin) * 0.05;
+        const yAxisRange = [priceMin - padding, priceMax + padding];
+
+
+        // --- 內部人交易數據處理 (不變) ---
         const insiderBuys = { x: [], y: [], text: [] };
         const insiderSells = { x: [], y: [], text: [] };
-
         insiderTrades.forEach(trade => {
-            // 檢查交易日期是否在圖表範圍內
             if (new Date(trade.transactionDate) >= new Date(data.date[0]) && new Date(trade.transactionDate) <= new Date(data.date[data.date.length - 1])) {
                 const hoverText = `<b>${trade.reportingName}</b><br>${trade.transactionType.startsWith('P') ? '買入' : '賣出'} ${trade.securitiesTransacted.toLocaleString()} 股<br>@ $${trade.price.toFixed(2)}`;
-                if (trade.transactionType.startsWith('P')) { // P-Purchase
-                    insiderBuys.x.push(trade.transactionDate);
-                    insiderBuys.y.push(trade.price);
-                    insiderBuys.text.push(hoverText);
-                } else { // S-Sale
-                    insiderSells.x.push(trade.transactionDate);
-                    insiderSells.y.push(trade.price);
-                    insiderSells.text.push(hoverText);
-                }
+                if (trade.transactionType.startsWith('P')) { insiderBuys.x.push(trade.transactionDate); insiderBuys.y.push(trade.price); insiderBuys.text.push(hoverText); } else { insiderSells.x.push(trade.transactionDate); insiderSells.y.push(trade.price); insiderSells.text.push(hoverText); }
             }
         });
+        const traceInsiderBuys = { x: insiderBuys.x, y: insiderBuys.y, text: insiderBuys.text, mode: 'markers', type: 'scatter', name: '內部人買入', hoverinfo: 'text', marker: { symbol: 'arrow-up', color: 'green', size: 10, line: { color: 'black', width: 1 } }, yaxis: 'y1' };
+        const traceInsiderSells = { x: insiderSells.x, y: insiderSells.y, text: insiderSells.text, mode: 'markers', type: 'scatter', name: '內部人賣出', hoverinfo: 'text', marker: { symbol: 'arrow-down', color: 'red', size: 10, line: { color: 'black', width: 1 } }, yaxis: 'y1' };
 
-        const traceInsiderBuys = {
-            x: insiderBuys.x, y: insiderBuys.y, text: insiderBuys.text,
-            mode: 'markers', type: 'scatter', name: '內部人買入',
-            hoverinfo: 'text',
-            marker: { symbol: 'arrow-up', color: 'green', size: 10, line: { color: 'black', width: 1 } },
-            yaxis: 'y1'
-        };
-        const traceInsiderSells = {
-            x: insiderSells.x, y: insiderSells.y, text: insiderSells.text,
-            mode: 'markers', type: 'scatter', name: '內部人賣出',
-            hoverinfo: 'text',
-            marker: { symbol: 'arrow-down', color: 'red', size: 10, line: { color: 'black', width: 1 } },
-            yaxis: 'y1'
-        };
-
-        // --- 主圖：K線、均線、成交量 ---
-        const traceCandlestick = {
-            x: data.date, open: data.open, high: data.high, low: data.low, close: data.close,
-            type: 'candlestick', name: 'K線', yaxis: 'y1'
-        };
+        // --- 定義所有圖表軌跡 (Traces) ---
+        const traceCandlestick = { x: data.date, open: data.open, high: data.high, low: data.low, close: data.close, type: 'candlestick', name: 'K線', yaxis: 'y1' };
         const traceMa5 = { x: data.date, y: data.ma5, type: 'scatter', mode: 'lines', name: 'MA5', line: { color: 'blue', width: 1.5 }, yaxis: 'y1' };
         const traceMa10 = { x: data.date, y: data.ma10, type: 'scatter', mode: 'lines', name: 'MA10', line: { color: 'orange', width: 1.5 }, yaxis: 'y1' };
         const traceMa20 = { x: data.date, y: data.ma20, type: 'scatter', mode: 'lines', name: 'MA20', line: { color: 'green', width: 1.5 }, yaxis: 'y1' };
         const traceMa60 = { x: data.date, y: data.ma60, type: 'scatter', mode: 'lines', name: 'MA60', line: { color: 'purple', width: 1.5 }, yaxis: 'y1' };
-        const traceVolume = { x: data.date, y: data.volume, type: 'bar', name: '成交量', marker: { color: 'rgba(128,128,128,0.5)' }, yaxis: 'y2' };
-
-        // --- 副圖1：MACD ---
-        const traceMacdLine = { x: data.date, y: data.macdLine, type: 'scatter', mode: 'lines', name: 'MACD', line: { color: '#e67e22' }, yaxis: 'y3' };
-        const traceSignalLine = { x: data.date, y: data.signalLine, type: 'scatter', mode: 'lines', name: 'Signal', line: { color: '#3498db' }, yaxis: 'y3' };
-        const traceHistogram = { x: data.date, y: data.histogram, type: 'bar', name: 'Histogram', marker: { 
-            color: data.histogram.map(val => val > 0 ? 'rgba(239, 83, 80, 0.5)' : 'rgba(38, 166, 154, 0.5)') // 紅漲綠跌
-        }, yaxis: 'y3' };
         
-        // --- 副圖2：RSI ---
-        const traceRsi = { x: data.date, y: data.rsi, type: 'scatter', mode: 'lines', name: 'RSI', line: { color: '#9b59b6' }, yaxis: 'y4' };
+        // --- 【*** 修正點 2: 還原所有指標，並重新分配 Y 軸 ***】 ---
+        const traceRsi = { x: data.date, y: data.rsi, type: 'scatter', mode: 'lines', name: 'RSI', line: { color: '#3498db' }, yaxis: 'y2' }; // RSI 使用 y2
+        const traceMacdLine = { x: data.date, y: data.macdLine, type: 'scatter', mode: 'lines', name: 'MACD', line: { color: '#e67e22' }, yaxis: 'y3' }; // MACD 使用 y3
+        const traceSignalLine = { x: data.date, y: data.signalLine, type: 'scatter', mode: 'lines', name: 'Signal', line: { color: '#3498db' }, yaxis: 'y3' }; // MACD 使用 y3
+        const traceHistogram = { x: data.date, y: data.histogram, type: 'bar', name: 'Histogram', marker: { color: data.histogram.map(val => { if (val === null) { return 'rgba(0, 0, 0, 0)'; } return val > 0 ? 'rgba(239, 83, 80, 0.7)' : 'rgba(38, 166, 154, 0.7)'; }) }, yaxis: 'y3' }; // MACD 使用 y3
+        const traceVolume = { x: data.date, y: data.volume, type: 'bar', name: '成交量', marker: { color: 'rgba(128,128,128,0.5)' }, yaxis: 'y4' }; // 成交量使用 y4
 
         // --- 圖表佈局設定 (Layout) ---
         const layout = {
             title: `${symbol} 股價 K 線圖與技術指標`,
             height: 950,
-            xaxis: {
-                anchor: 'y4',
-                domain: [0, 0],
-                rangeslider: { visible: false }
-            },
-            // 【修改點】調整所有 Y 軸的 domain，創造間距
-            yaxis: { // 主圖 (價格)
-                domain: [0.55, 1], // 佔據上方 45%
-            },
-            yaxis2: { // 主圖 (成交量)
-                domain: [0.55, 1],
-                overlaying: 'y',
-                side: 'right',
-                showticklabels: false,
-                range: [0, Math.max(...data.volume) * 3]
-            },
-            yaxis3: { // 副圖1 (MACD)
-                domain: [0.30, 0.5], // 佔據 22%
-            },
-            yaxis4: { // 副圖2 (RSI)
-                domain: [0,0.22], // 佔據 22%
-            },
-            legend: {
-                traceorder: 'normal'
-            },
-            margin: {
-                r: 150
-            },
+            xaxis: { rangeslider: { visible: false } },
+
+            // --- 【*** 修正點 3: 建立四層子圖佈局 ***】 ---
+            // Y 軸 1: K 線主圖 (使用我們手動計算的範圍)
+            yaxis: { domain: [0.55, 1], range: yAxisRange },
+            // Y 軸 2: RSI 指標
+            yaxis2: { domain: [0.38, 0.52], title: 'RSI' },
+            // Y 軸 3: MACD 指標
+            yaxis3: { domain: [0.18, 0.35], title: 'MACD' },
+            // Y 軸 4: 成交量
+            yaxis4: { domain: [0, 0.15], title: '成交量' },
+
+            legend: { traceorder: 'normal' },
+            margin: { r: 150 },
             showlegend: true,
             shapes: [
-                { type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y4', y0: 70, y1: 70, line: { color: 'red', width: 1, dash: 'dash' } },
-                { type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y4', y0: 30, y1: 30, line: { color: 'green', width: 1, dash: 'dash' } }
-            ],
-            // 【修改點】對應新的 domain，調整註解的 Y 座標
-            annotations: [
-                {
-                    text: 'MACD (判斷趨勢方向和強度)',
-                    font: { size: 12, color: '#666' },
-                    showarrow: false,
-                    x: 0.5,
-                    xref: 'paper',
-                    y: 0.50, // 放在 MACD 圖正上方的新位置
-                    yref: 'paper',
-                    xanchor: 'center',
-                    yanchor: 'bottom'
-                },
-                {
-                    text: 'RSI (買賣盤力道)',
-                    font: { size: 12, color: '#666' },
-                    showarrow: false,
-                    x: 0.5,
-                    xref: 'paper',
-                    y: 0.22, // 放在 RSI 圖正上方的新位置
-                    yref: 'paper',
-                    xanchor: 'center',
-                    yanchor: 'bottom'
-                }
+                // RSI 參考線/背景 (yref 要對應到 y2)
+                { type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y2', y0: 70, y1: 70, line: { color: 'red', width: 1, dash: 'dash' } },
+                { type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y2', y0: 30, y1: 30, line: { color: 'red', width: 1, dash: 'dash' } },
+                { type: 'rect', xref: 'paper', x0: 0, x1: 1, yref: 'y2', y0: 70, y1: 100, fillcolor: 'rgba(239, 83, 80, 0.1)', layer: 'below', line: { width: 0 } },
+                { type: 'rect', xref: 'paper', x0: 0, x1: 1, yref: 'y2', y0: 0, y1: 30, fillcolor: 'rgba(38, 166, 154, 0.1)', layer: 'below', line: { width: 0 } }
             ]
         };
 
-        // --- 【修改點】將所有圖表數據組裝在一起 ---
+        // --- 組合所有圖表數據 ---
         const plotData = [
-            traceCandlestick, traceMa5, traceMa10, traceMa20, traceMa60, traceVolume,
-            traceMacdLine, traceSignalLine, traceHistogram,
+            traceCandlestick, traceMa5, traceMa10, traceMa20, traceMa60,
             traceRsi,
-            traceInsiderBuys, traceInsiderSells // 新增內部人交易標記
+            traceMacdLine, traceSignalLine, traceHistogram,
+            traceVolume,
+            traceInsiderBuys, traceInsiderSells
         ];
         
         Plotly.newPlot('chart-container', plotData, layout, {responsive: true});
@@ -541,7 +564,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             newsHTML += `
                 <div class="news-item">
-                    ${imageHTML} {/* <--- 在這裡插入圖片 HTML，如果沒有圖片，這裡就是空的 */}
+                    ${imageHTML}
                     <div class="news-content">
                         <a href="${news.url}" target="_blank" class="news-title">${news.title}</a>
                         <div class="news-meta">
@@ -809,8 +832,191 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('AI 分析時發生錯誤:', error);
         } finally {
             n8nButton.disabled = false;
-            n8nButton.textContent = '🤖 執行 AI 分析 (n8n)';
+            n8nButton.textContent = '🤖 執行 AI 分析';
         }
+    }
+
+    // ========================================================================
+    // --- 【全新功能】策略篩選器 ---
+    // ========================================================================
+
+    /** * 從 FMP API 獲取所有產業分類列表
+     * @param {string} apiKey - 你的 FMP API 金鑰
+     * @returns {Promise<Array>} - 回傳產業列表 */
+    async function fetchAllSectors(apiKey) {
+        const url = `https://financialmodelingprep.com/api/v3/sector-performance?apikey=${apiKey}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error('無法獲取產業列表。');
+        }
+        const data = await response.json();
+        // 過濾掉變化率為 0 的，通常是無效或未分類的產業
+        return data.filter(sector => parseFloat(sector.changesPercentage) !== 0);
+    }
+
+    /** * 從 FMP API 獲取指定股票的布林通道數據
+     * @param {string} symbol - 股票代碼
+     * @param {string} apiKey - 你的 FMP API 金鑰
+     * @returns {Promise<Array>} - 回傳布林通道數據陣列 */
+    async function fetchBollingerBands(symbol, apiKey) {
+        // 標準差為2，週期為20天是 BBands 的常用設定
+        const url = `https://financialmodelingprep.com/api/v3/technical_indicator/daily/${symbol}?period=20&stdDev=2&type=bollinger&apikey=${apiKey}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            console.error(`無法獲取 ${symbol} 的布林通道數據。`);
+            return null; // 回傳 null 以便後續處理
+        }
+        return await response.json();
+    }
+
+    /** * 從 FMP API 的股票篩選器獲取結果
+     * @param {string} sector - 要篩選的產業別
+     * @param {string} apiKey - 你的 FMP API 金鑰
+     * @returns {Promise<Array>} - 回傳股票列表 */
+    async function fetchScreenerResults(sector, apiKey) {
+        // FMP 篩選器 API：根據產業篩選，並依照成交量降冪排序，回傳前 10 筆
+        const url = `https://financialmodelingprep.com/api/v3/stock-screener?sector=${sector}&volumeMoreThan=1000000&isEtf=false&isActivelyTrading=true&sortBy=volume&sortOrder=desc&limit=10&apikey=${apiKey}`;
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`無法獲取 ${sector} 產業的篩選結果。`);
+        }
+        return await response.json();
+    }
+
+
+    /*** 「反轉機會篩選器」的主要執行函式 */
+    async function runScreener() {
+        console.log("🚀 開始執行反轉機會篩選器...");
+        const apiKey = fmpKeyInput.value.trim();
+        if (!apiKey) {
+            alert('zEmap5KigsQdS8290WKQ3hnAuG96PaNn');
+            return;
+        }
+
+        // --- 階段 1: 市場掃描 (與之前相同) ---
+        welcomeMessage.classList.add('hidden');
+        resultsContainer.classList.add('hidden');
+        loader.classList.remove('hidden');
+        
+        let allCandidateStocks = [];
+        try {
+            const sectors = await fetchAllSectors(apiKey);
+            console.log(`🌍 市場上共有 ${sectors.length} 個主要產業分類。`);
+            
+            let sectorCount = 0;
+            for (const sector of sectors) {
+                sectorCount++;
+                welcomeMessage.classList.remove('hidden');
+                welcomeMessage.innerHTML = `<h1>正在掃描市場...</h1><p>(${sectorCount}/${sectors.length}) 正在分析 ${sector.sector} 產業</p>`;
+                const top10Stocks = await fetchScreenerResults(sector.sector, apiKey);
+                allCandidateStocks = allCandidateStocks.concat(top10Stocks);
+            }
+            console.log(`✅ 市場掃描完成，共 ${allCandidateStocks.length} 檔候選股。`);
+
+        } catch (error) {
+            welcomeMessage.classList.remove('hidden');
+            welcomeMessage.innerHTML = `<h1>❌ 篩選時發生錯誤</h1><p>${error.message}</p>`;
+            console.error('篩選器執行錯誤:', error);
+            loader.classList.add('hidden');
+            return;
+        }
+
+        // --- 階段 2: 深度條件過濾 ---
+        console.log("🕵️‍♂️ 開始對候選股進行深度條件過濾...");
+        const finalResults = []; // 存放通過所有考驗的股票
+        
+        let stockCount = 0;
+        for (const stock of allCandidateStocks) {
+            stockCount++;
+            const symbol = stock.symbol;
+            console.log(`(${stockCount}/${allCandidateStocks.length}) 正在檢驗 ${symbol}...`);
+            welcomeMessage.innerHTML = `<h1>正在過濾候選股...</h1><p>(${stockCount}/${allCandidateStocks.length}) 正在檢驗 ${symbol}</p>`;
+
+            try {
+                // --- API 請求 1: 獲取近一個月的歷史數據 (用於計算趨勢, RSI, 成交量) ---
+                const oneMonthAgo = new Date();
+                oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
+                const history = await fetchStockData(symbol, oneMonthAgo.toISOString().split('T')[0], new Date().toISOString().split('T')[0], apiKey, '1day');
+                if (!history || history.length < 20) {
+                    console.log(`- ${symbol}: 歷史數據不足，跳過。`);
+                    continue; // 數據不足則跳過
+                }
+
+                // --- 條件 1: 檢查近一週是否下跌 ---
+                const last5days = history.slice(-5);
+                const isDownTrend = last5days[last5days.length - 1].close < last5days[0].close;
+                if (!isDownTrend) {
+                    console.log(`- ${symbol}: 未滿足 '一週下跌' 條件，跳過。`);
+                    continue;
+                }
+
+                // --- 條件 2: 檢查 RSI 是否 < 30 ---
+                const closes = history.map(d => d.close);
+                const rsiResult = calculateRSI(closes, 14);
+                const latestRsi = rsiResult[rsiResult.length - 1];
+                if (latestRsi === null || latestRsi >= 30) {
+                    console.log(`- ${symbol}: RSI (${latestRsi?.toFixed(2)}) 未滿足 '< 30' 條件，跳過。`);
+                    continue;
+                }
+
+                // --- 新增條件 1: 檢查成交量是否放大 ---
+                const volumes = history.map(d => d.volume);
+                const latestVolume = volumes[volumes.length - 1];
+                const avgVolume20 = volumes.slice(-20).reduce((a, b) => a + b, 0) / 20;
+                if (latestVolume < avgVolume20 * 1.5) {
+                    console.log(`- ${symbol}: 未滿足 '成交量放大' 條件，跳過。`);
+                    continue;
+                }
+                
+                // --- API 請求 2: 獲取布林通道數據 ---
+                const bbands = await fetchBollingerBands(symbol, apiKey);
+                if (!bbands || bbands.length === 0) { continue; }
+                const latestClose = closes[closes.length - 1];
+                const latestLowerBand = bbands[0].lowerBand; // API回傳的是倒序，第一筆就是最新的
+
+                // --- 新增條件 2: 檢查股價是否跌破布林下軌 ---
+                if (latestClose > latestLowerBand) {
+                    console.log(`- ${symbol}: 股價 (${latestClose}) 未滿足 '跌破布林下軌' (${latestLowerBand}) 條件，跳過。`);
+                    continue;
+                }
+
+                // --- API 請求 3: 獲取內部人交易數據 ---
+                const insiderTrades = await fetchInsiderTrades(symbol, apiKey);
+                const recentBuys = insiderTrades.filter(t => t.transactionType.startsWith('P-Purchase'));
+                const buyingDays = new Set(recentBuys.map(t => t.transactionDate)).size;
+
+                // --- 條件 3: 檢查內部人購買天數是否 > 3 ---
+                if (buyingDays <= 3) {
+                    console.log(`- ${symbol}: 內部人購買天數 (${buyingDays}) 未滿足 '> 3' 條件，跳過。`);
+                    continue;
+                }
+
+                // 🎉 如果所有條件都通過，這就是我們要找的股票！
+                console.log(`%c✅ ${symbol} 通過了所有篩選條件!`, "color: green; font-weight: bold;");
+                finalResults.push({
+                    symbol: symbol,
+                    companyName: stock.companyName,
+                    price: stock.price,
+                    rsi: latestRsi,
+                    volumeRatio: latestVolume / avgVolume20,
+                    bollinger: { close: latestClose, lowerBand: latestLowerBand },
+                    insiderBuyingDays: buyingDays
+                });
+
+            } catch (err) {
+                console.error(`檢驗 ${symbol} 時發生錯誤:`, err.message);
+            }
+        }
+
+        // --- 階段 3: 顯示最終結果 ---
+        console.log("🌟🌟🌟 最終篩選結果:", finalResults);
+        welcomeMessage.innerHTML = `<h1>篩選完畢！</h1><p>在 ${allCandidateStocks.length} 檔候選股中，共找到 ${finalResults.length} 檔符合所有條件的股票！請查看主控台。`;
+        if (finalResults.length > 0) {
+            // TODO (下一步): 將 finalResults 傳送給 AI 進行分析
+        }
+
+        loader.classList.add('hidden');
     }
 
 });

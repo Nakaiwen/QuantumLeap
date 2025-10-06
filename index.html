@@ -29,6 +29,13 @@
         <label for="end-date-input">結束日期 (End Date)</label>
         <input type="date" id="end-date-input">
 
+        <div class="rsi-settings-container">
+            <div class="rsi-label-group">
+                <label for="rsi-period-input">RSI 指標設定 (RSI Period)</label>
+                <span id="rsi-period-value">14</span> </div>
+            <input type="range" id="rsi-period-input" min="5" max="30" value="14">
+        </div>
+
         <label>圖表週期 (Timeframe)</label>
         <div id="timeframe-selector" class="radio-tag-group">
             <input type="radio" id="tf-day" name="timeframe" class="timeframe-radio" data-timeframe="1day" checked>
@@ -41,14 +48,17 @@
             <label for="tf-month">月 K 線</label>
         </div>
 
-        <button id="analyze-button">🚀 分析</button>
+        <div class="button-group">
+            <button id="analyze-button">🚀 分析</button>
+            <button id="n8n-button">🤖 AI 分析</button>
+        </div>
 
         <div class="divider"></div>
         
-        <button id="n8n-button">🤖 執行 AI 分析 (n8n)</button>
+        <button id="screener-button" class="button-full">🔍 反轉機會篩選器</button>
 
         <div class="rainbow-divider"></div>
-        <h2>📢 免責聲明</h2>
+        <h4>📢 免責聲明</h4>
         <p style="font-size: 0.7rem; color: #cbd5e1;">本系統僅供學術研究與教育用途，所有數據與分析結果僅供參考，**不構成投資建議**。</p>
 
     </div>
@@ -63,6 +73,7 @@
         
         <div id="results-container" class="hidden">
             <div id="metrics-container"></div>
+            <div id="rsi-alert-container"></div>
             <div id="chart-container" class="card"></div>
             <div id="ai-analysis-container" class="card"></div>
             <div id="ratios-container" class="card"></div>

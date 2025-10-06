@@ -1,12 +1,12 @@
 /* --- 全局與字體設定 --- */
 :root {
-    --sidebar-bg: #1e293b; /* 深藍灰 */
+    --sidebar-bg: #252f3f; /* 深藍灰 */
     --main-bg: #f1f5f9;     /* 淺灰 */
     --card-bg: #ffffff;
     --text-primary: #1e293b;
     --text-secondary: #64748b;
     --text-light: #f8fafc;
-    --accent-color: #3b82f6; /* 鮮豔藍 */
+    --accent-color: #f5711a; /* 鮮豔藍 */
     --border-color: #e2e8f0;
 }
 
@@ -34,7 +34,7 @@ body {
     width: 320px;
     background-color: var(--sidebar-bg);
     color: var(--text-light);
-    padding: 1.5rem;
+    padding: 1.2rem;
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
@@ -83,12 +83,12 @@ body {
 
 #sidebar button {
     width: 100%;
-    padding: 0.75rem;
+    padding: 0.6rem;
     margin-top: 1.5rem;
     border: none;
     border-radius: 3px;
     color: white;
-    font-size: 1rem;
+    font-size: 0.9rem;
     font-weight: 700;
     cursor: pointer;
     transition: all 0.2s ease-in-out;
@@ -98,7 +98,7 @@ body {
     background-color: var(--accent-color);
 }
 #analyze-button:hover {
-    background-color: #2563eb;
+    background-color: #eb8525;
     transform: translateY(-2px);
 }
 
@@ -108,6 +108,99 @@ body {
 #n8n-button:hover {
     background-color: #64748b;
     transform: translateY(-2px);
+}
+
+/* 按鈕群組的容器 */
+.button-group {
+    display: flex; /* 讓內部的按鈕橫向排列 */
+    gap: 1rem;     /* 設定兩個按鈕之間的間距 */
+    margin-top: 0.8rem;
+}
+
+/* 覆蓋 sidebar 內所有按鈕的預設寬度 */
+#sidebar button {
+    width: auto; /* 取消原本的 width: 100% */
+}
+
+/* 群組內的按鈕 (各佔一半寬度) */
+.button-group button {
+    flex: 1; /* 讓兩個按鈕平均分配容器寬度 */
+    margin-top: 0; /* 因為 margin 已經加在 button-group 上了 */
+}
+
+/* 滿版寬度的按鈕 */
+#sidebar .button-full {
+    width: 100%;
+    margin-top: 0.6rem;
+}
+
+/* 新的篩選器按鈕樣式 */
+#screener-button {
+    background-color: #1a92aa; /* 使用一個新的顏色 (綠色) */
+}
+#screener-button:hover {
+    background-color: #15803d;
+    transform: translateY(-2px);
+}
+
+/* --- RSI 週期設定滑桿樣式 --- */
+.rsi-settings-container {
+    margin-top: 1.5rem;
+}
+
+.rsi-label-group {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.rsi-label-group label {
+    margin: 0; /* 覆蓋掉 label 的預設 margin */
+}
+
+#rsi-period-value {
+    font-size: 0.9rem;
+    font-weight: 700;
+    background-color: #475569;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+}
+
+/* 美化 range input 滑桿 (最佳實踐版本) */
+input[type="range"] {
+    -webkit-appearance: none; /* 針對 Chrome, Safari, Edge */
+    appearance: none;         /* 針對 Firefox 和其他現代瀏覽器 */
+    width: 100%;
+    height: 8px;
+    background: #475569;
+    border-radius: 5px;
+    outline: none;
+    opacity: 0.7;
+    transition: opacity .2s;
+}
+
+input[type="range"]:hover {
+    opacity: 1;
+}
+
+/* 滑軌的圓形鈕 */
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: var(--accent-color);
+    cursor: pointer;
+    border-radius: 50%;
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    background: var(--accent-color);
+    cursor: pointer;
+    border-radius: 50%;
 }
 
 /* --- 右側圖表區 (Main Content) --- */
@@ -395,6 +488,56 @@ td:first-child, th:first-child {
 .radio-tag-group label:hover {
     color: var(--text-light);
 }
+
+/* --- RSI 警告訊息樣式 --- */
+#rsi-alert-container {
+    margin: 0 0 2rem 0; /* 設定和上下卡片的間距 */
+}
+
+.rsi-alert {
+    display: flex;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.rsi-icon {
+    font-size: 1.8rem;
+    margin-right: 1rem;
+}
+
+.rsi-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.rsi-text strong {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.rsi-text span {
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+/* 超買警告樣式 (紅色系) */
+.rsi-alert-overbought {
+    background-color: #fff1f2; /* 淡紅色背景 */
+    border-color: #fecaca;   /* 稍深的紅色邊框 */
+    color: #b91c1c;          /* 深紅色文字 */
+}
+
+/* 超賣訊號樣式 (綠色系) */
+.rsi-alert-oversold {
+    background-color: #f0fdf4; /* 淡綠色背景 */
+    border-color: #bbf7d0;   /* 稍深的綠色邊框 */
+    color: #166534;          /* 深綠色文字 */
+}
+
 
 /* --- AI 分析結果樣式 --- */
 #ai-analysis-container h3 {
