@@ -8,6 +8,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // 在這裡貼上你的 n8n Webhook URL
     const N8N_WEBHOOK_URL = 'https://nakaiwen.app.n8n.cloud/webhook/9bc415d0-4620-4740-a6bd-ae738d6010ac';
 
+    // 在這裡貼上你「反轉機會流程」的 Screener Webhook URL
+    const N8N_SCREENER_WEBHOOK_URL = 'https://nakaiwen.app.n8n.cloud/webhook/2684a080-a59d-4e28-aee5-a1d76a55d57b';
+
     // --- 獲取頁面上的所有元素 ---
     const symbolInput = document.getElementById('symbol-input');
     const fmpKeyInput = document.getElementById('fmp-key-input');
@@ -1009,14 +1012,77 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // --- 階段 3: 顯示最終結果 ---
+        // --- 階段 3: 顯示最終結果並觸發 AI 分析 ---
         console.log("🌟🌟🌟 最終篩選結果:", finalResults);
-        welcomeMessage.innerHTML = `<h1>篩選完畢！</h1><p>在 ${allCandidateStocks.length} 檔候選股中，共找到 ${finalResults.length} 檔符合所有條件的股票！請查看主控台。`;
-        if (finalResults.length > 0) {
-            // TODO (下一步): 將 finalResults 傳送給 AI 進行分析
-        }
+        loader.classList.add('hidden'); // 先隱藏載入動畫
 
-        loader.classList.add('hidden');
+        if (finalResults.length > 0) {
+            // 如果有結果，就呼叫新的 AI 分析函式
+            analyzeScreenerResultsWithAI(finalResults, apiKey);
+        } else {
+            // 如果沒有結果，就顯示找不到的訊息
+            welcomeMessage.innerHTML = `<h1>篩選完畢！</h1><p>在 ${allCandidateStocks.length} 檔候選股中，沒有找到完全符合所有條件的股票。</p>`;
+        }
+    }
+
+    /** * 【全新功能】將篩選器結果發送給 AI 進行分析並顯示
+     * @param {Array} results - 通過所有篩選的股票陣列
+     * @param {string} apiKey - 你的 FMP API 金鑰 */
+    async function analyzeScreenerResultsWithAI(results, apiKey) {
+        if (!results || results.length === 0) return;
+
+        console.log("🧠 正在為篩選結果準備 AI 分析...");
+        welcomeMessage.innerHTML = `<h1>正在為 ${results.length} 檔潛力股請求 AI 分析...</h1><p>這個過程可能需要一點時間，請稍候。</p>`;
+        loader.classList.remove('hidden');
+
+        try {
+            // 1. 為所有結果股票並行獲取新聞
+            const newsPromises = results.map(stock => fetchStockNews(stock.symbol, apiKey));
+            const newsResults = await Promise.all(newsPromises);
+
+            // 2. 將新聞數據合併到結果中
+            const payload = results.map((stock, index) => {
+                const formattedNews = newsResults[index].map(news => ({
+                    title: news.title,
+                    url: news.url
+                }));
+                return {
+                    ...stock,
+                    recent_news: formattedNews
+                };
+            });
+            
+            console.log("📦 最終打包發送給 AI 的數據:", payload);
+
+            // 3. 呼叫新的 Screener Webhook URL
+            const response = await fetch(N8N_SCREENER_WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Screener AI 分析 Webhook 回應錯誤，狀態碼: ${response.status}`);
+            }
+
+            const aiResult = await response.json();
+            
+            // 4. 將 AI 的分析結果顯示在新的容器中
+            const screenerResultsContainer = document.getElementById('screener-results-container');
+            if (aiResult.aiAnalysisText) {
+                const htmlContent = marked.parse(aiResult.aiAnalysisText);
+                screenerResultsContainer.innerHTML = `<div class="card">${htmlContent}</div>`;
+                welcomeMessage.classList.add('hidden'); // 隱藏提示訊息
+            } else {
+                throw new Error('AI 回應中找不到 "aiAnalysisText" 欄位。');
+            }
+
+        } catch (error) {
+            welcomeMessage.innerHTML = `<h1>❌ AI 分析時發生錯誤</h1><p>${error.message}</p>`;
+            console.error('Screener AI 分析錯誤:', error);
+        } finally {
+            loader.classList.add('hidden');
+        }
     }
 
 });

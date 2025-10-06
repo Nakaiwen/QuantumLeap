@@ -597,3 +597,8 @@ td:first-child, th:first-child {
 .ai-content li {
     margin-bottom: 0.5rem;   /* 增加項目之間的間距 */
 }
+
+/* --- 篩選器結果顯示區樣式 --- */
+#screener-results-container .card {
+    margin-top: 2rem;
+}
