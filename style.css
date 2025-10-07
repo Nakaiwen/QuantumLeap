@@ -34,8 +34,8 @@ body {
     width: 320px;
     background-color: var(--sidebar-bg);
     color: var(--text-light);
-    padding: 1.2rem;
-    display: flex;
+    padding: 1.5rem;
+
     flex-direction: column;
     box-sizing: border-box;
     flex-shrink: 0;
@@ -57,7 +57,7 @@ body {
 #sidebar label {
     font-weight: 500;
     margin-top: 1rem;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.6rem;
     font-size: 0.8rem;
     color: #cbd5e1;
 }
@@ -66,7 +66,7 @@ body {
 #sidebar input[type="password"],
 #sidebar input[type="date"] {
     width: 100%;
-    padding: 0.75rem;
+    padding: 0.5rem;
     border: 1px solid #475569;
     border-radius: 3px;
     background-color: #334155;
@@ -601,4 +601,45 @@ td:first-child, th:first-child {
 /* --- 篩選器結果顯示區樣式 --- */
 #screener-results-container .card {
     margin-top: 2rem;
+}
+
+/* 新的主力追蹤策略按鈕樣式 */
+#insider-screener-button {
+    background-color: #7c3aed; /* 紫色 */
+}
+#insider-screener-button:hover {
+    background-color: #6d28d9;
+    transform: translateY(-px);
+}
+
+/* --- 股票輸入框與下拉選單群組樣式 --- */
+.symbol-input-group {
+    display: flex;
+    gap: 0.5rem; /* 輸入框和選單的間距 */
+}
+
+/* 讓輸入框佔據主要空間 */
+.symbol-input-group #symbol-input {
+    flex: 2; /* 佔 2/3 寬度 */
+    min-width: 0;
+}
+
+/* 設定下拉選單樣式 */
+.symbol-input-group #quality-stocks-dropdown {
+    flex: 1.5; /* 佔 1.5/3.5 寬度 */
+    background-color: #334155;
+    color: var(--text-light);
+    border: 1px solid #475569;
+    border-radius: 3px;
+    padding: 0 0.5rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    min-width: 0; /* 【*** 新增這一行以防止溢出 ***】 */
+}
+
+
+.symbol-input-group #quality-stocks-dropdown:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4);
 }

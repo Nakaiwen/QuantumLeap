@@ -18,7 +18,12 @@
         <div class="rainbow-divider"></div>
 
         <label for="symbol-input">股票代碼 (Stock Symbol)</label>
-        <input type="text" id="symbol-input" value="NVDA" placeholder="例如: AAPL, TSLA">
+        <div class="symbol-input-group">
+            <input type="text" id="symbol-input" value="NVDA" placeholder="例如: AAPL, TSLA">
+            <select id="quality-stocks-dropdown">
+                <option value="" disabled selected>熱門股列表...</option>
+            </select>
+        </div>
 
         <label for="fmp-key-input">FMP API 金鑰</label>
         <input type="password" id="fmp-key-input" placeholder="請貼上你的 FMP API Key">
@@ -56,6 +61,7 @@
         <div class="divider"></div>
         
         <button id="screener-button" class="button-full">🔍 反轉機會篩選器</button>
+        <button id="insider-screener-button" class="button-full">📈 主力追蹤策略</button>
 
         <div class="rainbow-divider"></div>
         <h4>📢 免責聲明</h4>
