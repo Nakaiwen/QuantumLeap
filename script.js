@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const welcomeMessage = document.getElementById('welcome-message');
     const resultsContainer = document.getElementById('results-container');
     const loader = document.getElementById('loader');
+    const screenerResultsContainer = document.getElementById('screener-results-container');
 
     const metricsContainer = document.getElementById('metrics-container');
     const chartContainer = document.getElementById('chart-container');
@@ -570,15 +571,24 @@ document.addEventListener('DOMContentLoaded', () => {
         Plotly.newPlot('chart-container', plotData, layout, {responsive: true});
     }
 
-    // --- 從 FMP API 獲取股票新聞 ---
+    // --- 從 FMP API 獲取股票新聞 (強化版) ---
     async function fetchStockNews(symbol, apiKey) {
         const url = `https://financialmodelingprep.com/api/v3/stock_news?tickers=${symbol}&limit=10&apikey=${apiKey}`;
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error('無法獲取股票新聞數據。此功能可能需要 FMP 付費訂閱方案。');
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                // 即使請求失敗，也只在主控台報錯，並回傳空陣列，避免中斷主流程
+                console.error(`無法獲取 ${symbol} 的股票新聞。`);
+                return [];
+            }
+            const data = await response.json();
+            // 【*** 關鍵修改點 ***】
+            // 明確檢查 API 回傳的是不是一個陣列，如果不是，就回傳空陣列
+            return Array.isArray(data) ? data : [];
+        } catch (error) {
+            console.error(`獲取 ${symbol} 新聞時發生網路錯誤:`, error);
+            return [];
         }
-        const data = await response.json();
-        return data || [];
     }
 
     // --- 顯示股票新聞列表 ---
@@ -914,6 +924,41 @@ document.addEventListener('DOMContentLoaded', () => {
         return await response.json();
     }
 
+    /*** 【全新】從 FMP API 獲取並整理指定股票的法人持股數據
+     * @param {string} symbol - 股票代碼
+     * @param {string} apiKey - 你的 FMP API 金鑰
+     * @returns {Promise<object|null>} - 回傳包含前五大股東摘要的物件，或 null*/
+    async function fetchInstitutionalOwnership(symbol, apiKey) {
+        const url = `https://financialmodelingprep.com/api/v3/institutional-holder/${symbol}?apikey=${apiKey}`;
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                console.error(`無法獲取 ${symbol} 的法人持股數據。`);
+                return null;
+            }
+            const data = await response.json();
+            if (!data || data.length === 0) return null;
+
+            // 整理數據：找出前 5 大持股機構，並格式化
+            const top5Holders = data
+                .sort((a, b) => b.shares - a.shares) // 依照持股數降冪排序
+                .slice(0, 5) // 取出前 5 名
+                .map(holder => ({
+                    name: holder.holder,
+                    shares: holder.shares,
+                    changePercentage: holder.change // FMP API 用 'change' 代表持股變動百分比
+                }));
+            
+            return {
+                topHolders: top5Holders
+            };
+
+        } catch (error) {
+            console.error(`獲取 ${symbol} 法人持股時發生錯誤:`, error);
+            return null;
+        }
+    }
+
     /** * 從 FMP API 的股票篩選器獲取結果
      * @param {string} sector - 要篩選的產業別
      * @param {string} apiKey - 你的 FMP API 金鑰
@@ -946,18 +991,19 @@ document.addEventListener('DOMContentLoaded', () => {
         return await response.json();
     }
 
-    /*** 「反轉機會篩選器」的主要執行函式 */
+    /*** 「反轉機會篩選器」的主要執行函式*/
     async function runScreener() {
         console.log("🚀 開始執行反轉機會篩選器...");
         const apiKey = fmpKeyInput.value.trim();
         if (!apiKey) {
-            alert('zEmap5KigsQdS8290WKQ3hnAuG96PaNn');
+            alert('請先提供 FMP API 金鑰。');
             return;
         }
 
-        // --- 階段 1: 市場掃描 (與之前相同) ---
+        // --- 階段 1: 市場掃描 ---
         welcomeMessage.classList.add('hidden');
         resultsContainer.classList.add('hidden');
+        screenerResultsContainer.innerHTML = ''; // 清空舊的篩選結果
         loader.classList.remove('hidden');
         
         let allCandidateStocks = [];
@@ -995,24 +1041,25 @@ document.addEventListener('DOMContentLoaded', () => {
             welcomeMessage.innerHTML = `<h1>正在過濾候選股...</h1><p>(${stockCount}/${allCandidateStocks.length}) 正在檢驗 ${symbol}</p>`;
 
             try {
-                // --- API 請求 1: 獲取近一個月的歷史數據 (用於計算趨勢, RSI, 成交量) ---
+                // API 請求 1: 獲取近一個月的歷史數據
                 const oneMonthAgo = new Date();
                 oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
                 const history = await fetchStockData(symbol, oneMonthAgo.toISOString().split('T')[0], new Date().toISOString().split('T')[0], apiKey, '1day');
                 if (!history || history.length < 20) {
                     console.log(`- ${symbol}: 歷史數據不足，跳過。`);
-                    continue; // 數據不足則跳過
+                    continue;
                 }
 
-                // --- 條件 1: 檢查近一週是否下跌 ---
+                // 條件 1: 檢查近一週是否下跌
                 const last5days = history.slice(-5);
+                if (last5days.length < 5) continue;
                 const isDownTrend = last5days[last5days.length - 1].close < last5days[0].close;
                 if (!isDownTrend) {
                     console.log(`- ${symbol}: 未滿足 '一週下跌' 條件，跳過。`);
                     continue;
                 }
 
-                // --- 條件 2: 檢查 RSI 是否 < 30 ---
+                // 條件 2: 檢查 RSI 是否 < 30
                 const closes = history.map(d => d.close);
                 const rsiResult = calculateRSI(closes, 14);
                 const latestRsi = rsiResult[rsiResult.length - 1];
@@ -1021,7 +1068,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     continue;
                 }
 
-                // --- 新增條件 1: 檢查成交量是否放大 ---
+                // 條件 3: 檢查成交量是否放大
                 const volumes = history.map(d => d.volume);
                 const latestVolume = volumes[volumes.length - 1];
                 const avgVolume20 = volumes.slice(-20).reduce((a, b) => a + b, 0) / 20;
@@ -1030,30 +1077,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     continue;
                 }
                 
-                // --- API 請求 2: 獲取布林通道數據 ---
+                // API 請求 2: 獲取布林通道數據
                 const bbands = await fetchBollingerBands(symbol, apiKey);
                 if (!bbands || bbands.length === 0) { continue; }
                 const latestClose = closes[closes.length - 1];
-                const latestLowerBand = bbands[0].lowerBand; // API回傳的是倒序，第一筆就是最新的
+                const latestLowerBand = bbands[0].lowerBand;
 
-                // --- 新增條件 2: 檢查股價是否跌破布林下軌 ---
+                // 條件 4: 檢查股價是否跌破布林下軌
                 if (latestClose > latestLowerBand) {
                     console.log(`- ${symbol}: 股價 (${latestClose}) 未滿足 '跌破布林下軌' (${latestLowerBand}) 條件，跳過。`);
                     continue;
                 }
 
-                // --- API 請求 3: 獲取內部人交易數據 ---
+                // API 請求 3: 獲取內部人交易數據
                 const insiderTrades = await fetchInsiderTrades(symbol, apiKey);
                 const recentBuys = insiderTrades.filter(t => t.transactionType.startsWith('P-Purchase'));
                 const buyingDays = new Set(recentBuys.map(t => t.transactionDate)).size;
 
-                // --- 條件 3: 檢查內部人購買天數是否 > 3 ---
+                // 條件 5: 檢查內部人購買天數是否 > 3
                 if (buyingDays <= 3) {
                     console.log(`- ${symbol}: 內部人購買天數 (${buyingDays}) 未滿足 '> 3' 條件，跳過。`);
                     continue;
                 }
 
-                // 🎉 如果所有條件都通過，這就是我們要找的股票！
                 console.log(`%c✅ ${symbol} 通過了所有篩選條件!`, "color: green; font-weight: bold;");
                 finalResults.push({
                     symbol: symbol,
@@ -1072,47 +1118,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- 階段 3: 顯示最終結果並觸發 AI 分析 ---
         console.log("🌟🌟🌟 最終篩選結果:", finalResults);
-        loader.classList.add('hidden'); // 先隱藏載入動畫
+        loader.classList.add('hidden');
 
         if (finalResults.length > 0) {
-            // 如果有結果，就呼叫新的 AI 分析函式
             analyzeScreenerResultsWithAI(finalResults, apiKey);
         } else {
-            // 如果沒有結果，就顯示找不到的訊息
+            welcomeMessage.classList.remove('hidden');
             welcomeMessage.innerHTML = `<h1>篩選完畢！</h1><p>在 ${allCandidateStocks.length} 檔候選股中，沒有找到完全符合所有條件的股票。</p>`;
         }
     }
 
-    /*** 【全新功能】將篩選器結果發送給 AI 進行分析並顯示
+    /**
+     * 【最終強化版】將篩選器結果發送給 AI 進行分析並顯示
      * @param {Array} results - 通過所有篩選的股票陣列
-     * @param {string} apiKey - 你的 FMP API 金鑰 */
+     * @param {string} apiKey - 你的 FMP API 金鑰
+     */
     async function analyzeScreenerResultsWithAI(results, apiKey) {
         if (!results || results.length === 0) return;
 
-        console.log("🧠 正在為篩選結果準備 AI 分析...");
+        console.log("🧠 正在為篩選結果準備 AI 分析 (包含法人持股)...");
         welcomeMessage.innerHTML = `<h1>正在為 ${results.length} 檔潛力股請求 AI 分析...</h1><p>這個過程可能需要一點時間，請稍候。</p>`;
         loader.classList.remove('hidden');
 
         try {
-            // 1. 為所有結果股票並行獲取新聞
             const newsPromises = results.map(stock => fetchStockNews(stock.symbol, apiKey));
-            const newsResults = await Promise.all(newsPromises);
+            const ownershipPromises = results.map(stock => fetchInstitutionalOwnership(stock.symbol, apiKey));
+            
+            const [newsResults, ownershipResults] = await Promise.all([newsPromises, ownershipPromises]);
 
-            // 2. 將新聞數據合併到結果中
             const payload = results.map((stock, index) => {
-                const formattedNews = newsResults[index].map(news => ({
+                // 【*** 關鍵修改點 ***】
+                const newsForStock = newsResults[index];
+                // 再次檢查確保 newsForStock 是陣列，然後才執行 .map
+                const formattedNews = Array.isArray(newsForStock) ? newsForStock.map(news => ({
                     title: news.title,
                     url: news.url
-                }));
+                })) : [];
+                
                 return {
                     ...stock,
-                    recent_news: formattedNews
+                    recent_news: formattedNews,
+                    institutionalOwnership: ownershipResults[index]
                 };
             });
             
             console.log("📦 最終打包發送給 AI 的數據:", payload);
 
-            // 3. 呼叫新的 Screener Webhook URL
             const response = await fetch(N8N_SCREENER_WEBHOOK_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1125,12 +1176,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const aiResult = await response.json();
             
-            // 4. 將 AI 的分析結果顯示在新的容器中
             const screenerResultsContainer = document.getElementById('screener-results-container');
             if (aiResult.aiAnalysisText) {
                 const htmlContent = marked.parse(aiResult.aiAnalysisText);
                 screenerResultsContainer.innerHTML = `<div class="card">${htmlContent}</div>`;
-                welcomeMessage.classList.add('hidden'); // 隱藏提示訊息
+                welcomeMessage.classList.add('hidden');
             } else {
                 throw new Error('AI 回應中找不到 "aiAnalysisText" 欄位。');
             }
